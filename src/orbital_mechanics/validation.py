@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -32,6 +33,26 @@ GREEN = "#009E73"
 VERMILLION = "#D55E00"
 PURPLE = "#CC79A7"
 GRID = "#D9DEE7"
+GENERATOR_SOURCE_FILES = (
+    "constants.py",
+    "dynamics.py",
+    "elements.py",
+    "propagation.py",
+    "validation.py",
+)
+
+
+def generator_source_sha256() -> str:
+    """Hash the source modules that define validation data and figures."""
+
+    package_dir = Path(__file__).resolve().parent
+    digest = hashlib.sha256()
+    for name in GENERATOR_SOURCE_FILES:
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((package_dir / name).read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def orbital_period_s(semi_major_axis_km: float, gravitational_parameter_km3_s2: float) -> float:
@@ -574,7 +595,11 @@ def run_validation(output_dir: Path) -> dict[str, Any]:
     overall_pass = all(metric["passed"] for metric in metrics)
 
     summary: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "generator": {
+            "source_files": list(GENERATOR_SOURCE_FILES),
+            "source_sha256": generator_source_sha256(),
+        },
         "units": {"distance": "km", "time": "s", "angle": "rad unless labeled otherwise"},
         "constants": {
             "earth_gravitational_parameter_km3_s2": EARTH.gravitational_parameter_km3_s2,

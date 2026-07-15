@@ -1,11 +1,14 @@
 import csv
 import json
+import shutil
 from pathlib import Path
 
+import matplotlib.image as mpimg
 import numpy as np
 import pytest
 
-from orbital_mechanics.validation import run_validation
+from orbital_mechanics.evidence import compare_validation_directories
+from orbital_mechanics.validation import generator_source_sha256, run_validation
 
 
 @pytest.fixture(scope="module")
@@ -79,3 +82,106 @@ def test_expected_machine_readable_and_plot_artifacts_exist(evidence_dir: Path) 
     assert expected == {path.name for path in evidence_dir.iterdir()}
     for png_name in ("circular_two_body.png", "two_body_conservation.png", "j2_raan_drift.png"):
         assert (evidence_dir / png_name).stat().st_size > 20_000
+
+
+def test_checked_in_evidence_matches_regeneration(evidence_dir: Path) -> None:
+    reference_dir = Path("artifacts/validation")
+    assert compare_validation_directories(reference_dir, evidence_dir) == []
+
+
+def test_summary_binds_evidence_to_generator_source(evidence_dir: Path) -> None:
+    summary = json.loads((evidence_dir / "validation_summary.json").read_text(encoding="utf-8"))
+
+    assert summary["generator"]["source_sha256"] == generator_source_sha256()
+
+
+def test_evidence_comparison_rejects_material_numeric_change(
+    evidence_dir: Path,
+    tmp_path: Path,
+) -> None:
+    changed_dir = tmp_path / "changed"
+    shutil.copytree(evidence_dir, changed_dir)
+    summary_path = changed_dir / "validation_summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["scenarios"]["circular_two_body"]["metrics"][0]["value"] = 1.0
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    errors = compare_validation_directories(Path("artifacts/validation"), changed_dir)
+
+    assert any("metrics[0].value" in error for error in errors)
+
+
+def test_evidence_comparison_rejects_blank_plot(evidence_dir: Path, tmp_path: Path) -> None:
+    changed_dir = tmp_path / "blank-plot"
+    shutil.copytree(evidence_dir, changed_dir)
+    plot_path = changed_dir / "circular_two_body.png"
+    image = mpimg.imread(plot_path)
+    mpimg.imsave(plot_path, np.ones_like(image))
+
+    errors = compare_validation_directories(Path("artifacts/validation"), changed_dir)
+
+    assert any("circular_two_body.png" in error for error in errors)
+
+
+def test_evidence_comparison_rejects_low_resolution_plot(
+    evidence_dir: Path,
+    tmp_path: Path,
+) -> None:
+    changed_dir = tmp_path / "low-resolution-plot"
+    shutil.copytree(evidence_dir, changed_dir)
+    plot_path = changed_dir / "circular_two_body.png"
+    image = mpimg.imread(plot_path)
+    mpimg.imsave(plot_path, image[::2, ::2])
+
+    errors = compare_validation_directories(Path("artifacts/validation"), changed_dir)
+
+    assert any("plot dimensions differ" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("plot_name", "series_color", "region"),
+    [
+        ("circular_two_body.png", "#0072B2", (0.0, 1.0, 0.0, 0.5)),
+        ("circular_two_body.png", "#E69F00", (0.0, 1.0, 0.0, 0.5)),
+        ("circular_two_body.png", "#009E73", (0.0, 1.0, 0.0, 0.5)),
+        ("circular_two_body.png", "#0072B2", (0.0, 1.0, 0.5, 1.0)),
+        ("circular_two_body.png", "#D55E00", (0.0, 1.0, 0.5, 1.0)),
+        ("two_body_conservation.png", "#0072B2", (0.0, 0.5, 0.0, 1.0)),
+        ("two_body_conservation.png", "#009E73", (0.5, 1.0, 0.0, 1.0)),
+        ("j2_raan_drift.png", "#0072B2", (0.0, 1.0, 0.0, 0.5)),
+        ("j2_raan_drift.png", "#E69F00", (0.0, 1.0, 0.0, 0.5)),
+        ("j2_raan_drift.png", "#0072B2", (0.0, 1.0, 0.5, 1.0)),
+        ("j2_raan_drift.png", "#E69F00", (0.0, 1.0, 0.5, 1.0)),
+    ],
+)
+def test_evidence_comparison_rejects_missing_plot_series(
+    evidence_dir: Path,
+    tmp_path: Path,
+    plot_name: str,
+    series_color: str,
+    region: tuple[float, float, float, float],
+) -> None:
+    changed_dir = tmp_path / "missing-series"
+    shutil.copytree(evidence_dir, changed_dir)
+    plot_path = changed_dir / plot_name
+    image = mpimg.imread(plot_path)
+    target = (
+        np.array(
+            [int(series_color[index : index + 2], 16) for index in (1, 3, 5)],
+            dtype=np.float64,
+        )
+        / 255.0
+    )
+    y0, y1, x0, x1 = region
+    image_region = image[
+        round(y0 * image.shape[0]) : round(y1 * image.shape[0]),
+        round(x0 * image.shape[1]) : round(x1 * image.shape[1]),
+        :3,
+    ]
+    matching_color = np.max(np.abs(image_region - target), axis=2) <= 0.05
+    image_region[matching_color] = 1.0
+    mpimg.imsave(plot_path, image)
+
+    errors = compare_validation_directories(Path("artifacts/validation"), changed_dir)
+
+    assert any("series coverage differs" in error for error in errors)

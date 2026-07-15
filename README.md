@@ -67,6 +67,14 @@ produces:
 There is no random input. The integrator, step sizes, initial states, constants,
 and acceptance thresholds are recorded in the JSON evidence.
 
+GitHub Actions regenerates this evidence on Linux and compares it with the
+checked-in macOS snapshot. Numeric series use tight floating-point tolerances,
+and plot checks preserve dimensions, visible content, per-series color
+coverage, and a bounded perceptual difference. This avoids false failures from
+platform-specific math and font rasterization without accepting missing curves.
+The summary also records a SHA-256 digest of every source module that generates
+the numeric and visual evidence, so a generator change requires a fresh snapshot.
+
 ## Model
 
 All calculations use kilometers, seconds, and radians. The state is
@@ -220,8 +228,11 @@ artifacts/validation/ generated JSON, CSV, and PNG evidence
 
 GitHub Actions installs from the frozen uv lock, runs lint, formatting, package
 builds, and the full test suite on Python 3.11 and 3.12. A separate Python 3.12
-job regenerates and byte-compares every checked-in JSON, CSV, and PNG validation
-artifact. Tests cover conversion round trips, prograde and retrograde singular
+job regenerates every checked-in validation artifact, compares JSON and CSV
+values within tight floating-point tolerances, and checks PNG dimensions,
+panel-specific series coverage, and perceptual similarity. A source digest
+binds the snapshot to the generator implementation. Tests cover conversion
+round trips, prograde and retrograde singular
 conventions, acceleration signs, invalid inputs, RK4 determinism, whole-arc
 analytic error, vector conservation drift, and numerical-versus-theoretical J2
 RAAN drift.
@@ -231,12 +242,10 @@ RAAN drift.
 - [NGA World Geodetic System 1984](https://earth-info.nga.mil/?action=wgs84&dir=wgs84)
   defines the equatorial semi-major axis and geocentric gravitational constant
   used here.
-- [NASA GSFC and NIMA EGM96 coefficient set](https://cddis.nasa.gov/archive/egm96/general_info/egm96_to360.ascii)
-  supplies the normalized degree-two coefficient. Converting its
-  `C20 = -0.484165371736e-3` gives `J2 = 1.08262668355e-3`, rounded in this model
-  to `1.08262668e-3`.
 - [NASA/TP-1998-206861](https://ntrs.nasa.gov/citations/19980218814) documents
-  the development and conventions of the joint EGM96 gravity model.
+  the development, coefficient conventions, and validation of the joint EGM96
+  gravity model. This implementation uses its degree-two zonal coefficient as
+  the fixed `J2 = 1.08262668e-3` model constant.
 - [NASA, Analysis of Opportunities for Intercalibration Between Two Spacecraft](https://ntrs.nasa.gov/citations/20120007107)
   gives the first-order secular J2 RAAN relationship used for the independent
   hard-number and propagation comparisons.
