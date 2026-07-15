@@ -19,6 +19,50 @@ def evidence_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return output_dir
 
 
+def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+    assert fieldnames is not None
+    return fieldnames, rows
+
+
+def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _metric_by_identity(
+    metrics: list[dict[str, object]],
+    scenario: str,
+    name: str,
+) -> dict[str, object]:
+    return next(
+        metric for metric in metrics if metric["scenario"] == scenario and metric["name"] == name
+    )
+
+
+def _offset_circular_metric(directory: Path, name: str, delta: float) -> None:
+    metrics_path = directory / "validation_metrics.csv"
+    fieldnames, metrics = _read_csv(metrics_path)
+    csv_metric = _metric_by_identity(metrics, "circular_two_body", name)
+    csv_metric["value"] = str(float(csv_metric["value"]) + delta)
+    _write_csv(metrics_path, fieldnames, metrics)
+
+    summary_path = directory / "validation_summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary_metric = _metric_by_identity(
+        summary["scenarios"]["circular_two_body"]["metrics"],
+        "circular_two_body",
+        name,
+    )
+    summary_metric["value"] = float(summary_metric["value"]) + delta
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def test_all_scientific_acceptance_metrics_pass(evidence_dir: Path) -> None:
     summary = json.loads((evidence_dir / "validation_summary.json").read_text(encoding="utf-8"))
     metrics = [
@@ -111,25 +155,101 @@ def test_evidence_comparison_rejects_material_numeric_change(
     assert any("metrics[0].value" in error for error in errors)
 
 
-def test_evidence_comparison_allows_micrometer_position_error_delta(
-    evidence_dir: Path,
+def test_evidence_comparison_allows_micrometer_position_deltas(tmp_path: Path) -> None:
+    reference_dir = Path("artifacts/validation")
+    changed_dir = tmp_path / "position-error-roundoff"
+    shutil.copytree(reference_dir, changed_dir)
+    csv_path = changed_dir / "circular_two_body.csv"
+    fieldnames, rows = _read_csv(csv_path)
+    position_fields = (
+        "x_numeric_km",
+        "y_numeric_km",
+        "x_analytic_km",
+        "y_analytic_km",
+        "position_error_km",
+    )
+    for field in position_fields:
+        near_zero_row = min(rows, key=lambda row: abs(float(row[field])))
+        near_zero_row[field] = str(float(near_zero_row[field]) + 5e-10)
+    _write_csv(csv_path, fieldnames, rows)
+    _offset_circular_metric(changed_dir, "maximum_position_error", 5e-10)
+
+    assert compare_validation_directories(reference_dir, changed_dir) == []
+
+
+def test_evidence_comparison_allows_sub_microarcsecond_j2_residual_deltas(
     tmp_path: Path,
 ) -> None:
-    changed_dir = tmp_path / "position-error-roundoff"
-    shutil.copytree(evidence_dir, changed_dir)
-    csv_path = changed_dir / "circular_two_body.csv"
-    with csv_path.open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames
-        rows = list(reader)
-    assert fieldnames is not None
-    rows[1_355]["position_error_km"] = str(float(rows[1_355]["position_error_km"]) + 5e-10)
-    with csv_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    reference_dir = Path("artifacts/validation")
+    changed_dir = tmp_path / "j2-residual-roundoff"
+    shutil.copytree(reference_dir, changed_dir)
+    csv_path = changed_dir / "j2_raan_drift.csv"
+    fieldnames, rows = _read_csv(csv_path)
+    residual_fields = (
+        "prograde_theory_residual_deg",
+        "prograde_fitted_residual_deg",
+        "retrograde_theory_residual_deg",
+        "retrograde_fitted_residual_deg",
+    )
+    for field in residual_fields:
+        near_zero_row = min(rows, key=lambda row: abs(float(row[field])))
+        near_zero_row[field] = str(float(near_zero_row[field]) + 5e-11)
+    _write_csv(csv_path, fieldnames, rows)
 
-    assert compare_validation_directories(Path("artifacts/validation"), changed_dir) == []
+    assert compare_validation_directories(reference_dir, changed_dir) == []
+
+
+@pytest.mark.parametrize(
+    ("csv_name", "field", "delta"),
+    [
+        ("circular_two_body.csv", "x_numeric_km", 1.1e-9),
+        ("j2_raan_drift.csv", "prograde_fitted_residual_deg", 1.1e-10),
+    ],
+)
+def test_evidence_comparison_rejects_roundoff_above_scoped_tolerance(
+    csv_name: str,
+    field: str,
+    delta: float,
+    tmp_path: Path,
+) -> None:
+    reference_dir = Path("artifacts/validation")
+    changed_dir = tmp_path / f"above-tolerance-{field}"
+    shutil.copytree(reference_dir, changed_dir)
+    csv_path = changed_dir / csv_name
+    fieldnames, rows = _read_csv(csv_path)
+    near_zero_row = min(rows, key=lambda row: abs(float(row[field])))
+    near_zero_row[field] = str(float(near_zero_row[field]) + delta)
+    _write_csv(csv_path, fieldnames, rows)
+
+    errors = compare_validation_directories(reference_dir, changed_dir)
+
+    assert any(csv_name in error and f":{field}:" in error for error in errors)
+
+
+def test_evidence_comparison_rejects_position_metric_delta_above_tolerance(
+    tmp_path: Path,
+) -> None:
+    reference_dir = Path("artifacts/validation")
+    changed_dir = tmp_path / "position-metric-above-tolerance"
+    shutil.copytree(reference_dir, changed_dir)
+    _offset_circular_metric(changed_dir, "maximum_position_error", 1.1e-9)
+
+    errors = compare_validation_directories(reference_dir, changed_dir)
+
+    assert any("validation_metrics.csv" in error and ":value:" in error for error in errors)
+    assert any("validation_summary.json" in error and ".value:" in error for error in errors)
+
+
+def test_position_metric_tolerance_does_not_apply_to_velocity_metric(tmp_path: Path) -> None:
+    reference_dir = Path("artifacts/validation")
+    changed_dir = tmp_path / "velocity-metric-roundoff"
+    shutil.copytree(reference_dir, changed_dir)
+    _offset_circular_metric(changed_dir, "maximum_velocity_error", 5e-10)
+
+    errors = compare_validation_directories(reference_dir, changed_dir)
+
+    assert any("validation_metrics.csv" in error and ":value:" in error for error in errors)
+    assert any("validation_summary.json" in error and ".value:" in error for error in errors)
 
 
 def test_evidence_comparison_rejects_removed_conservation_series(

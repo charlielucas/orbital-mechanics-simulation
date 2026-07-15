@@ -14,7 +14,22 @@ from numpy.typing import NDArray
 
 RELATIVE_TOLERANCE = 1e-9
 ABSOLUTE_TOLERANCE = 1e-12
-CSV_ABSOLUTE_TOLERANCES = {"position_error_km": 1e-9}
+POSITION_ABSOLUTE_TOLERANCE_KM = 1e-9
+RAAN_RESIDUAL_ABSOLUTE_TOLERANCE_DEG = 1e-10
+CSV_ABSOLUTE_TOLERANCES = {
+    ("circular_two_body.csv", "x_numeric_km"): POSITION_ABSOLUTE_TOLERANCE_KM,
+    ("circular_two_body.csv", "y_numeric_km"): POSITION_ABSOLUTE_TOLERANCE_KM,
+    ("circular_two_body.csv", "x_analytic_km"): POSITION_ABSOLUTE_TOLERANCE_KM,
+    ("circular_two_body.csv", "y_analytic_km"): POSITION_ABSOLUTE_TOLERANCE_KM,
+    ("circular_two_body.csv", "position_error_km"): POSITION_ABSOLUTE_TOLERANCE_KM,
+    ("j2_raan_drift.csv", "prograde_theory_residual_deg"): (RAAN_RESIDUAL_ABSOLUTE_TOLERANCE_DEG),
+    ("j2_raan_drift.csv", "prograde_fitted_residual_deg"): (RAAN_RESIDUAL_ABSOLUTE_TOLERANCE_DEG),
+    ("j2_raan_drift.csv", "retrograde_theory_residual_deg"): (RAAN_RESIDUAL_ABSOLUTE_TOLERANCE_DEG),
+    ("j2_raan_drift.csv", "retrograde_fitted_residual_deg"): (RAAN_RESIDUAL_ABSOLUTE_TOLERANCE_DEG),
+}
+METRIC_ABSOLUTE_TOLERANCES = {
+    ("circular_two_body", "maximum_position_error"): POSITION_ABSOLUTE_TOLERANCE_KM,
+}
 MAX_ASPECT_RATIO_DELTA = 0.01
 MAX_DIMENSION_DELTA = 0.02
 MAX_PNG_MEAN_ABSOLUTE_ERROR = 0.03
@@ -53,6 +68,8 @@ def _compare_json(
     candidate: Any,
     location: str,
     errors: list[str],
+    *,
+    absolute_tolerance: float = ABSOLUTE_TOLERANCE,
 ) -> None:
     if isinstance(reference, bool) or isinstance(candidate, bool):
         if type(reference) is not type(candidate) or reference != candidate:
@@ -73,7 +90,7 @@ def _compare_json(
             float(reference),
             float(candidate),
             rel_tol=RELATIVE_TOLERANCE,
-            abs_tol=ABSOLUTE_TOLERANCE,
+            abs_tol=absolute_tolerance,
         ):
             errors.append(f"{location}: {reference!r} != {candidate!r} within tolerance")
         return
@@ -85,7 +102,18 @@ def _compare_json(
             errors.append(f"{location}: object keys differ")
             return
         for key in reference:
-            _compare_json(reference[key], candidate[key], f"{location}.{key}", errors)
+            child_tolerance = (
+                _metric_absolute_tolerance(reference, candidate)
+                if key == "value"
+                else ABSOLUTE_TOLERANCE
+            )
+            _compare_json(
+                reference[key],
+                candidate[key],
+                f"{location}.{key}",
+                errors,
+                absolute_tolerance=child_tolerance,
+            )
         return
     if isinstance(reference, list) or isinstance(candidate, list):
         if not isinstance(reference, list) or not isinstance(candidate, list):
@@ -106,6 +134,40 @@ def _numeric_cell(value: str) -> tuple[bool, float]:
         return True, float(value)
     except ValueError:
         return False, 0.0
+
+
+def _metric_absolute_tolerance(
+    reference: dict[str, Any],
+    candidate: dict[str, Any],
+) -> float:
+    reference_scenario = reference.get("scenario")
+    reference_name = reference.get("name")
+    candidate_scenario = candidate.get("scenario")
+    candidate_name = candidate.get("name")
+    if not all(
+        isinstance(value, str)
+        for value in (reference_scenario, reference_name, candidate_scenario, candidate_name)
+    ):
+        return ABSOLUTE_TOLERANCE
+    reference_identity = (reference_scenario, reference_name)
+    candidate_identity = (candidate_scenario, candidate_name)
+    if reference_identity != candidate_identity:
+        return ABSOLUTE_TOLERANCE
+    return METRIC_ABSOLUTE_TOLERANCES.get(reference_identity, ABSOLUTE_TOLERANCE)
+
+
+def _csv_absolute_tolerance(
+    reference_path: Path,
+    reference_row: dict[str, str],
+    candidate_row: dict[str, str],
+    field: str,
+) -> float:
+    artifact_tolerance = CSV_ABSOLUTE_TOLERANCES.get((reference_path.name, field))
+    if artifact_tolerance is not None:
+        return artifact_tolerance
+    if reference_path.name == "validation_metrics.csv" and field == "value":
+        return _metric_absolute_tolerance(reference_row, candidate_row)
+    return ABSOLUTE_TOLERANCE
 
 
 def _compare_csv(reference_path: Path, candidate_path: Path, errors: list[str]) -> None:
@@ -144,7 +206,12 @@ def _compare_csv(reference_path: Path, candidate_path: Path, errors: list[str]) 
                         reference_numeric,
                         candidate_numeric,
                         rel_tol=RELATIVE_TOLERANCE,
-                        abs_tol=CSV_ABSOLUTE_TOLERANCES.get(field, ABSOLUTE_TOLERANCE),
+                        abs_tol=_csv_absolute_tolerance(
+                            reference_path,
+                            reference_row,
+                            candidate_row,
+                            field,
+                        ),
                     )
                 )
             else:

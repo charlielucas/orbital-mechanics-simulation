@@ -253,7 +253,7 @@ def _validate_circular(output_dir: Path) -> tuple[dict[str, Any], list[dict[str,
     axes[0].set_xlabel("ECI x (km)")
     axes[0].set_ylabel("ECI y (km)")
     axes[0].set_title("Five-orbit trajectory overlay")
-    axes[0].legend()
+    axes[0].legend(loc="center left", bbox_to_anchor=(0.05, 0.5), fontsize=8)
 
     axes[1].semilogy(
         trajectory.times_s / period,
