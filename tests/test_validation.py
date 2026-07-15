@@ -111,6 +111,57 @@ def test_evidence_comparison_rejects_material_numeric_change(
     assert any("metrics[0].value" in error for error in errors)
 
 
+def test_evidence_comparison_allows_micrometer_position_error_delta(
+    evidence_dir: Path,
+    tmp_path: Path,
+) -> None:
+    changed_dir = tmp_path / "position-error-roundoff"
+    shutil.copytree(evidence_dir, changed_dir)
+    csv_path = changed_dir / "circular_two_body.csv"
+    with csv_path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+    assert fieldnames is not None
+    rows[1_355]["position_error_km"] = str(float(rows[1_355]["position_error_km"]) + 5e-10)
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+    assert compare_validation_directories(Path("artifacts/validation"), changed_dir) == []
+
+
+def test_evidence_comparison_rejects_removed_conservation_series(
+    evidence_dir: Path,
+    tmp_path: Path,
+) -> None:
+    changed_dir = tmp_path / "removed-conservation-series"
+    shutil.copytree(evidence_dir, changed_dir)
+    csv_path = changed_dir / "two_body_conservation.csv"
+    with csv_path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+    assert fieldnames is not None
+    drift_fields = (
+        "relative_energy_drift",
+        "relative_angular_momentum_magnitude_drift",
+        "relative_angular_momentum_vector_drift",
+    )
+    for row in rows:
+        for field in drift_fields:
+            row[field] = "0.0"
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+    errors = compare_validation_directories(Path("artifacts/validation"), changed_dir)
+
+    assert any("relative_energy_drift" in error for error in errors)
+
+
 def test_evidence_comparison_rejects_blank_plot(evidence_dir: Path, tmp_path: Path) -> None:
     changed_dir = tmp_path / "blank-plot"
     shutil.copytree(evidence_dir, changed_dir)

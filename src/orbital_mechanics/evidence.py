@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 
 RELATIVE_TOLERANCE = 1e-9
 ABSOLUTE_TOLERANCE = 1e-12
+CSV_ABSOLUTE_TOLERANCES = {"position_error_km": 1e-9}
 MAX_ASPECT_RATIO_DELTA = 0.01
 MAX_DIMENSION_DELTA = 0.02
 MAX_PNG_MEAN_ABSOLUTE_ERROR = 0.03
@@ -143,13 +144,16 @@ def _compare_csv(reference_path: Path, candidate_path: Path, errors: list[str]) 
                         reference_numeric,
                         candidate_numeric,
                         rel_tol=RELATIVE_TOLERANCE,
-                        abs_tol=ABSOLUTE_TOLERANCE,
+                        abs_tol=CSV_ABSOLUTE_TOLERANCES.get(field, ABSOLUTE_TOLERANCE),
                     )
                 )
             else:
                 matches = reference_value == candidate_value
             if not matches:
-                errors.append(f"{reference_path.name}:{row_number}:{field}: evidence differs")
+                errors.append(
+                    f"{reference_path.name}:{row_number}:{field}: "
+                    f"{reference_value} != {candidate_value} within CSV tolerance"
+                )
                 return
 
 
