@@ -1,5 +1,7 @@
 # Orbital Mechanics Simulation
 
+[![CI](https://github.com/charlielucas/orbital-mechanics-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/charlielucas/orbital-mechanics-simulation/actions/workflows/ci.yml)
+
 A compact astrodynamics codebase that implements orbital state conversion,
 two-body and first-order J2 dynamics, and deterministic fixed-step propagation.
 The project treats numerical validation as a deliverable: one command reproduces
