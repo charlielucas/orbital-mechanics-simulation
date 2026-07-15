@@ -1,0 +1,9 @@
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+.venv/
+.validation-ci/
+__pycache__/
+*.egg-info/
+build/
+dist/

@@ -1,0 +1,9 @@
+scenario,name,value,unit,threshold,comparison,passed
+circular_two_body,maximum_position_error,3.65130386609825e-05,km,0.02,<=,True
+circular_two_body,maximum_velocity_error,3.936027378769467e-08,km/s,2e-05,<=,True
+two_body_conservation,maximum_relative_specific_energy_drift,8.983670987958797e-10,dimensionless,1e-07,<=,True
+two_body_conservation,maximum_relative_specific_angular_momentum_vector_drift,2.383499188985438e-10,dimensionless,1e-07,<=,True
+j2_raan_drift,prograde_relative_rate_error,0.002270381080784069,dimensionless,0.02,<=,True
+j2_raan_drift,prograde_fitted_rate_sign,-7.283484304243395e-07,rad/s,-1.0,sign,True
+j2_raan_drift,retrograde_relative_rate_error,0.0022703810807603213,dimensionless,0.02,<=,True
+j2_raan_drift,retrograde_fitted_rate_sign,7.283484304243218e-07,rad/s,1.0,sign,True

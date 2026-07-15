@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Sync frozen environment
+        run: uv sync --frozen --extra dev
+      - name: Lint
+        run: uv run --frozen ruff check .
+      - name: Check formatting
+        run: uv run --frozen ruff format --check .
+      - name: Test
+        run: uv run --frozen pytest -q
+      - name: Build package
+        run: uv build
+
+  evidence-freshness:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Sync frozen environment
+        run: uv sync --frozen --extra dev
+      - name: Regenerate validation evidence
+        run: uv run --frozen orbit-validate --output-dir .validation-ci
+      - name: Verify checked-in JSON, CSV, and PNG evidence is current
+        run: diff -qr artifacts/validation .validation-ci

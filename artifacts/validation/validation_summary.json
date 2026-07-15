@@ -1,0 +1,154 @@
+{
+  "artifacts": [
+    "validation_summary.json",
+    "validation_metrics.csv",
+    "circular_two_body.csv",
+    "circular_two_body.png",
+    "two_body_conservation.csv",
+    "two_body_conservation.png",
+    "j2_raan_drift.csv",
+    "j2_raan_drift.png"
+  ],
+  "constants": {
+    "earth_equatorial_radius_km": 6378.137,
+    "earth_gravitational_parameter_km3_s2": 398600.4418,
+    "earth_j2": 0.00108262668
+  },
+  "integrator": "classical fixed-step fourth-order Runge-Kutta",
+  "overall_pass": true,
+  "scenarios": {
+    "circular_two_body": {
+      "metrics": [
+        {
+          "comparison": "<=",
+          "name": "maximum_position_error",
+          "passed": true,
+          "scenario": "circular_two_body",
+          "threshold": 0.02,
+          "unit": "km",
+          "value": 3.65130386609825e-05
+        },
+        {
+          "comparison": "<=",
+          "name": "maximum_velocity_error",
+          "passed": true,
+          "scenario": "circular_two_body",
+          "threshold": 2e-05,
+          "unit": "km/s",
+          "value": 3.936027378769467e-08
+        }
+      ],
+      "parameters": {
+        "analytic_period_s": 5828.516637686015,
+        "orbit_count": 5,
+        "radius_km": 7000.0,
+        "step_s": 8.095161996786132,
+        "steps_per_orbit": 720
+      }
+    },
+    "j2_raan_drift": {
+      "cases": {
+        "prograde": {
+          "analytic_rate_deg_day": -3.5974160438388343,
+          "fitted_rate_deg_day": -3.605583549164475,
+          "inclination_deg": 60.0,
+          "relative_rate_error": 0.002270381080784069
+        },
+        "retrograde": {
+          "analytic_rate_deg_day": 3.597416043838832,
+          "fitted_rate_deg_day": 3.6055835491643875,
+          "inclination_deg": 120.0,
+          "relative_rate_error": 0.0022703810807603213
+        }
+      },
+      "metrics": [
+        {
+          "comparison": "<=",
+          "name": "prograde_relative_rate_error",
+          "passed": true,
+          "scenario": "j2_raan_drift",
+          "threshold": 0.02,
+          "unit": "dimensionless",
+          "value": 0.002270381080784069
+        },
+        {
+          "comparison": "sign",
+          "name": "prograde_fitted_rate_sign",
+          "passed": true,
+          "scenario": "j2_raan_drift",
+          "threshold": -1.0,
+          "unit": "rad/s",
+          "value": -7.283484304243395e-07
+        },
+        {
+          "comparison": "<=",
+          "name": "retrograde_relative_rate_error",
+          "passed": true,
+          "scenario": "j2_raan_drift",
+          "threshold": 0.02,
+          "unit": "dimensionless",
+          "value": 0.0022703810807603213
+        },
+        {
+          "comparison": "sign",
+          "name": "retrograde_fitted_rate_sign",
+          "passed": true,
+          "scenario": "j2_raan_drift",
+          "threshold": 1.0,
+          "unit": "rad/s",
+          "value": 7.283484304243218e-07
+        }
+      ],
+      "parameters": {
+        "duration_days": 14.0,
+        "eccentricity": 0.001,
+        "fit_method": "ordinary least squares over all unwrapped osculating RAAN samples",
+        "rate_formula": "-1.5 * J2 * n * (Re / p)^2 * cos(i)",
+        "semi_major_axis_km": 7000.0,
+        "step_s": 60.0
+      }
+    },
+    "two_body_conservation": {
+      "metrics": [
+        {
+          "comparison": "<=",
+          "name": "maximum_relative_specific_energy_drift",
+          "passed": true,
+          "scenario": "two_body_conservation",
+          "threshold": 1e-07,
+          "unit": "dimensionless",
+          "value": 8.983670987958797e-10
+        },
+        {
+          "comparison": "<=",
+          "name": "maximum_relative_specific_angular_momentum_vector_drift",
+          "passed": true,
+          "scenario": "two_body_conservation",
+          "threshold": 1e-07,
+          "unit": "dimensionless",
+          "value": 2.383499188985438e-10
+        }
+      ],
+      "parameters": {
+        "elements": {
+          "argument_of_periapsis_deg": 29.999999999999996,
+          "eccentricity": 0.2,
+          "inclination_deg": 50.0,
+          "raan_deg": 40.0,
+          "semi_major_axis_km": 10000.0,
+          "true_anomaly_deg": 14.999999999999998
+        },
+        "orbit_count": 10,
+        "period_s": 9952.014050491189,
+        "step_s": 16.586690084151982,
+        "steps_per_orbit": 600
+      }
+    }
+  },
+  "schema_version": 1,
+  "units": {
+    "angle": "rad unless labeled otherwise",
+    "distance": "km",
+    "time": "s"
+  }
+}
