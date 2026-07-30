@@ -2,19 +2,18 @@
 
 [![CI](https://github.com/charlielucas/orbital-mechanics-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/charlielucas/orbital-mechanics-simulation/actions/workflows/ci.yml)
 
-A compact astrodynamics codebase that implements orbital state conversion,
-two-body and first-order J2 dynamics, and deterministic fixed-step propagation.
-The project treats numerical validation as a deliverable: one command reproduces
-the plots and machine-readable evidence shown below.
+This project implements orbital state conversion, two-body and first-order J2
+dynamics, and fixed-step propagation. One validation command reproduces the
+plots and numeric results shown below.
 
-The implementation uses equations implemented directly with NumPy rather than
-an astrodynamics library. It uses no private coursework, proprietary models, or
-external trajectory data.
+The equations are implemented directly in NumPy. The project does not depend on
+an astrodynamics library, private coursework, proprietary models, or external
+trajectory data.
 
 ## Validation snapshot
 
-The checked-in evidence exercises the full numerical arc rather than comparing
-only the final state.
+The checked-in evidence measures error throughout each propagation, not only at
+the final state.
 
 | Scenario | Acceptance check | Measured result | Status |
 |---|---:|---:|:---:|
@@ -64,18 +63,17 @@ produces:
 - `validation_summary.json`: constants, scenario configuration, results, and pass/fail decisions
 - `validation_metrics.csv`: one row per acceptance metric
 - scenario CSV files: the numeric series behind every plot
-- colorblind-friendly, headless PNG figures suitable for review or publication
+- PNG plots designed to remain readable for common forms of color blindness
 
 There is no random input. The integrator, step sizes, initial states, constants,
 and acceptance thresholds are recorded in the JSON evidence.
 
-GitHub Actions regenerates this evidence on Linux and compares it with the
-checked-in macOS snapshot. Numeric series use tight floating-point tolerances,
-and plot checks preserve dimensions, visible content, per-series color
-coverage, and a bounded perceptual difference. This avoids false failures from
-platform-specific math and font rasterization without accepting missing curves.
-The summary also records a SHA-256 digest of every source module that generates
-the numeric and visual evidence, so a generator change requires a fresh snapshot.
+GitHub Actions regenerates the evidence on Linux and compares it with the
+checked-in macOS results. Numeric comparisons allow small floating-point
+differences between platforms. Plot checks confirm the dimensions, visible
+content, series colors, and overall appearance. The summary also records a
+SHA-256 digest of the source modules that generate the evidence. If those
+modules change, the snapshot must be regenerated.
 
 ## Model
 
@@ -135,15 +133,15 @@ p=a(1-e^2).
 $$
 
 Both a 60-degree prograde orbit and a 120-degree retrograde orbit are propagated.
-That provides an explicit sign guard: prograde RAAN regresses while retrograde
-RAAN advances.
+This checks the expected direction of the RAAN change. It regresses for the
+prograde orbit and advances for the retrograde orbit.
 
 ### Integration
 
 Propagation uses the classical fourth-order Runge-Kutta update with a fixed
 step. A requested duration must be an integer multiple of the step, so the
-implementation never introduces a hidden variable-size final step. This makes
-runs deterministic and makes resolution choices visible in the evidence.
+implementation never adds a smaller partial step at the end. The same inputs
+therefore produce the same step sequence.
 
 ## Classical element conversion
 
@@ -228,16 +226,15 @@ artifacts/validation/ generated JSON, CSV, and PNG evidence
 
 ## Quality gates
 
-GitHub Actions installs from the frozen uv lock, runs lint, formatting, package
-builds, and the full test suite on Python 3.11 and 3.12. A separate Python 3.12
-job regenerates every checked-in validation artifact, compares JSON and CSV
-values within tight floating-point tolerances, and checks PNG dimensions,
-panel-specific series coverage, and perceptual similarity. A source digest
-binds the snapshot to the generator implementation. Tests cover conversion
-round trips, prograde and retrograde singular
-conventions, acceleration signs, invalid inputs, RK4 determinism, whole-arc
-analytic error, vector conservation drift, and numerical-versus-theoretical J2
-RAAN drift.
+GitHub Actions installs from the frozen uv lock and runs lint, formatting,
+package builds, and tests on Python 3.11 and 3.12. A separate Python 3.12 job
+regenerates the validation files and compares the JSON, CSV, and PNG results
+with the checked-in snapshot.
+
+Tests cover conversion round trips, prograde and retrograde singular cases,
+acceleration signs, invalid inputs, RK4 repeatability, analytic error throughout
+the propagation, vector conservation drift, and the difference between numeric
+and theoretical J2 RAAN drift.
 
 ## References
 
