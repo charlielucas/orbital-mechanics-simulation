@@ -10,6 +10,38 @@ The equations are implemented directly in NumPy. The project does not depend on
 an astrodynamics library, private coursework, proprietary models, or external
 trajectory data.
 
+## Interactive explorer
+
+The Streamlit app adds three guided cases and a bounded custom orbit:
+
+- a circular two-body reference
+- an eccentric conservation check
+- a seven-day J2 nodal precession comparison
+- custom orbital elements with either force model
+
+Each run shows the three-dimensional trajectory, altitude history, and the
+diagnostic that fits the selected model. Two-body runs measure relative energy
+and angular-momentum drift. J2 runs compare the fitted RAAN rate with first-order
+theory. The complete trajectory can be downloaded as CSV.
+
+Run the app with `uv`:
+
+```bash
+uv sync --extra app
+uv run streamlit run app.py
+```
+
+Or with `pip`:
+
+```bash
+python -m pip install -e ".[app]"
+streamlit run app.py
+```
+
+The app uses the package's existing state conversion, acceleration models, and
+fixed-step propagator. It does not maintain a separate implementation of the
+physics.
+
 ## Validation snapshot
 
 The checked-in evidence measures error throughout each propagation, not only at
@@ -40,7 +72,7 @@ the final state.
 With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync --extra dev
+uv sync --extra app --extra dev
 uv run orbit-validate --output-dir artifacts/validation
 uv run ruff check .
 uv run ruff format --check .
@@ -52,7 +84,7 @@ Or with Python 3.11 or 3.12 and `pip`:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[app,dev]"
 orbit-validate --output-dir artifacts/validation
 pytest -q
 ```
@@ -194,10 +226,14 @@ and circular-equatorial cases.
 ## Project structure
 
 ```text
+app.py                Streamlit explorer interface
+requirements.txt      Streamlit Community Cloud install entrypoint
+.streamlit/config.toml app theme and browser settings
 src/orbital_mechanics/
   constants.py       Earth constants in km-s units
   elements.py        COE to/from Cartesian conversion
   dynamics.py        two-body, J2, and conserved quantities
+  explorer.py        bounded scenarios and model-specific diagnostics
   propagation.py     deterministic fixed-step RK4
   validation.py      scientific cases and artifact generation
   cli.py             orbit-validate command
@@ -216,6 +252,8 @@ artifacts/validation/ generated JSON, CSV, and PNG evidence
   aligned to inertial z. Earth rotation is not modeled.
 - Only bound elliptic classical elements are supported. Parabolic and
   hyperbolic trajectories are rejected.
+- The explorer requires at least 120 km of perigee altitude and caps each run
+  at 20,160 fixed steps.
 - The force model omits higher-order gravity, drag, third bodies, solar
   radiation pressure, relativity, and maneuvers.
 - Fixed-step RK4 is transparent and useful for this validation study, but it is
@@ -234,7 +272,8 @@ with the checked-in snapshot.
 Tests cover conversion round trips, prograde and retrograde singular cases,
 acceleration signs, invalid inputs, RK4 repeatability, analytic error throughout
 the propagation, vector conservation drift, and the difference between numeric
-and theoretical J2 RAAN drift.
+and theoretical J2 RAAN drift. Streamlit's headless app tests also run the
+default, J2, and custom explorer paths.
 
 ## References
 

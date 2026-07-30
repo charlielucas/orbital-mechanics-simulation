@@ -26,6 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+app = [
+  "streamlit>=1.60,<2",
+]
 dev = [
   "pytest>=8,<9",
   "ruff>=0.8,<1",
