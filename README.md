@@ -12,6 +12,8 @@ trajectory data.
 
 ## Interactive explorer
 
+Try the [live Orbital Mechanics Explorer](https://orbital-mechanics-explorer.streamlit.app/).
+
 The Streamlit app adds three guided cases and a bounded custom orbit:
 
 - a circular two-body reference
