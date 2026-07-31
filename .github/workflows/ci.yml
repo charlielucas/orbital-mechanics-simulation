@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -23,7 +24,7 @@ jobs:
         with:
           enable-cache: true
       - name: Sync frozen environment
-        run: uv sync --frozen --extra dev
+        run: uv sync --frozen --extra app --extra dev
       - name: Lint
         run: uv run --frozen ruff check .
       - name: Check formatting
