@@ -32,3 +32,17 @@ def test_custom_scenario_uses_exploratory_language() -> None:
     assert not app.exception
     assert app.sidebar.radio[0].value == "Two-body"
     assert any("not a checked-in acceptance case" in message.value for message in app.info)
+
+
+def test_custom_polar_j2_scenario_explains_near_zero_rate() -> None:
+    app = AppTest.from_file("app.py", default_timeout=30).run()
+
+    app.sidebar.selectbox[0].select("custom").run()
+    app.sidebar.radio[0].set_value("Two-body plus J2")
+    app.sidebar.slider[2].set_value(90.0)
+    app.run()
+
+    assert not app.exception
+    assert any(metric.label == "Fitted RAAN rate" for metric in app.metric)
+    assert any("effectively zero" in message.value for message in app.info)
+    assert not any("undefined for this equatorial orbit" in message.value for message in app.info)

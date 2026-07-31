@@ -342,16 +342,29 @@ def _render_diagnostic_summary(result: ExplorerResult, *, is_guided: bool) -> No
             )
         return
 
-    if result.relative_raan_rate_error is None:
+    if result.raan_change_deg is None:
         st.info("RAAN is undefined for this equatorial orbit, so no nodal rate is reported.")
         return
 
+    fitted_rate = result.fitted_raan_rate_deg_day
+    theoretical_rate = result.theoretical_raan_rate_deg_day
+    if fitted_rate is None or theoretical_rate is None:
+        st.warning("Nodal-rate diagnostics are unavailable for this run.")
+        return
+
     columns = st.columns(2)
-    columns[0].metric("Fitted RAAN rate", f"{result.fitted_raan_rate_deg_day:.4f}°/day")
+    columns[0].metric("Fitted RAAN rate", f"{fitted_rate:.4f}°/day")
     columns[1].metric(
         "First-order theory",
-        f"{result.theoretical_raan_rate_deg_day:.4f}°/day",
+        f"{theoretical_rate:.4f}°/day",
     )
+    if result.relative_raan_rate_error is None:
+        st.info(
+            "The first-order nodal rate is effectively zero for this near-polar orbit, "
+            "so relative rate error is not reported."
+        )
+        return
+
     st.metric("Relative rate error", f"{100.0 * result.relative_raan_rate_error:.2f}%")
     if is_guided and result.relative_raan_rate_error <= J2_RATE_ERROR_LIMIT:
         st.success("The fitted nodal rate is within 2% of first-order J2 theory.")
@@ -453,11 +466,16 @@ def main() -> None:
                 "momentum vector should remain constant. The plotted drift measures "
                 "numerical integration error."
             )
-        else:
+        elif result.raan_change_deg is not None:
             st.write(
                 "For the J2 model, the orbital plane precesses. The comparison fits the "
                 "unwrapped numerical RAAN series and checks it against the first-order "
                 "secular rate."
+            )
+        else:
+            st.write(
+                "RAAN is undefined for an equatorial orbit. The trajectory still includes "
+                "the J2 acceleration, but no nodal-rate comparison is shown."
             )
     with data_tab:
         st.dataframe(_preview_rows(result), width="stretch", hide_index=True)

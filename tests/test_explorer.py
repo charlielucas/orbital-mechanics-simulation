@@ -85,6 +85,30 @@ def test_equatorial_j2_case_does_not_report_undefined_raan() -> None:
     assert result.relative_raan_rate_error is None
 
 
+def test_polar_j2_case_reports_raan_without_relative_rate_error() -> None:
+    elements = ClassicalOrbitalElements(
+        semi_major_axis_km=7_000.0,
+        eccentricity=0.001,
+        inclination_rad=np.pi / 2.0,
+        raan_rad=0.0,
+        argument_of_periapsis_rad=0.0,
+        true_anomaly_rad=0.0,
+    )
+    request = SimulationRequest(
+        elements=elements,
+        force_model="j2",
+        duration_s=5_800.0,
+        step_count=290,
+    )
+
+    result = run_explorer(request)
+
+    assert result.raan_change_deg is not None
+    assert result.fitted_raan_rate_deg_day is not None
+    assert result.theoretical_raan_rate_deg_day == pytest.approx(0.0, abs=1e-12)
+    assert result.relative_raan_rate_error is None
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
